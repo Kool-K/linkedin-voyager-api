@@ -1,0 +1,39 @@
+# ── Environments ──────────────────────────────────────────────────────────────
+.env
+.env.*
+*.env
+.env.local
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ── Virtual Environments ──────────────────────────────────────────────────────
+.venv/
+env/
+venv/
+ENV/
+
+# ── OS Metadata ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDE & Tools ───────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.antigravity/
+*.swp
+*.swo
+
+# ── Testing & Artifacts ───────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
