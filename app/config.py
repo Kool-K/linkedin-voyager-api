@@ -69,26 +69,31 @@ class Settings(BaseSettings):
     )
 
     # ── Derived / computed properties ──────────────────────────────────────
-    @property
-    def csrf_token(self) -> str:
-        """
-        LinkedIn's CSRF token is the JSESSIONID value with surrounding
-        double-quotes stripped, e.g. `"ajax:123"` → `ajax:123`.
-        """
-        return self.linkedin_jsessionid.strip('"')
+    @field_validator("linkedin_li_at", mode="before")
+    @classmethod
+    def validate_li_at(cls, v: str) -> str:
+        return v.strip().strip('"')
 
-    @field_validator("linkedin_jsessionid")
+    @field_validator("linkedin_jsessionid", mode="before")
     @classmethod
     def validate_jsessionid(cls, v: str) -> str:
         """Ensure the JSESSIONID looks like a valid LinkedIn session token."""
-        cleaned = v.strip('"')
+        cleaned = v.strip().strip('"')
         if not cleaned.startswith("ajax:"):
             raise ValueError(
                 "LINKEDIN_JSESSIONID must start with 'ajax:' "
                 f"(received: {v!r}). "
                 "Copy the exact cookie value from your browser DevTools."
             )
-        return v
+        return cleaned
+
+    @property
+    def csrf_token(self) -> str:
+        """
+        LinkedIn's CSRF token is the JSESSIONID value with surrounding
+        double-quotes stripped, e.g. `"ajax:123"` → `ajax:123`.
+        """
+        return self.linkedin_jsessionid
 
     @field_validator("log_level")
     @classmethod

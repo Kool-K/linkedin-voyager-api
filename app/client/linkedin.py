@@ -25,7 +25,6 @@ import httpx
 from fastapi import HTTPException, status
 
 from app.config import Settings
-from app.utils.helpers import extract_csrf_token, sanitize_cookie_value
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,6 @@ _USER_AGENTS = [
 
 def _build_headers(settings: Settings) -> dict[str, str]:
     """Construct the exact set of HTTP request headers LinkedIn expects."""
-    csrf = extract_csrf_token(settings.linkedin_jsessionid)
     return {
         "User-Agent": _USER_AGENTS[0],
         "Accept": "application/vnd.linkedin.normalized+json+2.1",
@@ -80,22 +78,20 @@ def _build_headers(settings: Settings) -> dict[str, str]:
             '"deviceFormFactor":"DESKTOP","mpName":"voyager-web","displayDensity":2,'
             '"displayWidth":1920,"displayHeight":1080}'
         ),
-        "csrf-token": csrf,
+        "csrf-token": settings.csrf_token,
         "Referer": "https://www.linkedin.com/feed/",
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-origin",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
         "Connection": "keep-alive",
     }
 
 
 def _build_cookies(settings: Settings) -> dict[str, str]:
     """Build the minimal cookie jar LinkedIn needs to authenticate requests."""
-    li_at = sanitize_cookie_value(settings.linkedin_li_at)
-    jsessionid = sanitize_cookie_value(settings.linkedin_jsessionid)
     return {
-        "li_at": li_at,
-        "JSESSIONID": f'"{jsessionid}"' if not jsessionid.startswith('"') else jsessionid,
+        "li_at": settings.linkedin_li_at,
+        "JSESSIONID": f'"{settings.csrf_token}"',
         "lang": "v=2&lang=en-us",
     }
 
@@ -134,7 +130,7 @@ class LinkedInClient:
             limits=limits,
             timeout=httpx.Timeout(settings.request_timeout),
             http2=True,
-            follow_redirects=True,
+            follow_redirects=False,
         )
 
     async def aclose(self) -> None:
@@ -223,6 +219,24 @@ class LinkedInClient:
         caller to attempt the fallback endpoint.
         """
         code = response.status_code
+
+        # ── Redirects (Authwall) ──────────────────────────────────────────
+        if code in (301, 302, 303, 307, 308):
+            location = response.headers.get("location", "")
+            if "authwall" in location.lower() or "login" in location.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=(
+                        f"LinkedIn redirected to authwall (HTTP {code}). "
+                        "Your session credentials (li_at / JSESSIONID) are invalid or expired. "
+                        "Please log in to LinkedIn in a browser, copy fresh cookie values, "
+                        "and update your configuration."
+                    ),
+                )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Unexpected redirect from LinkedIn (HTTP {code} to {location})."
+            )
 
         # ── Success ───────────────────────────────────────────────────────
         if code == 200:
