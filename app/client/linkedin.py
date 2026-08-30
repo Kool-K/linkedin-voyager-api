@@ -131,7 +131,7 @@ class LinkedInClient:
             timeout=httpx.Timeout(settings.request_timeout),
             http2=True,
             follow_redirects=True,
-            max_redirects=5,
+            max_redirects=3,
         )
 
     async def aclose(self) -> None:
@@ -183,6 +183,12 @@ class LinkedInClient:
                 return data
         except HTTPException:
             raise
+        except httpx.TooManyRedirects as exc:
+            logger.warning("Too many redirects on dash endpoint: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="LinkedIn session expired or authentication checkpoint encountered (redirect loop). Please update your session cookies.",
+            ) from exc
         except httpx.RequestError as exc:
             logger.warning("Network error on dash endpoint: %s", exc)
 
@@ -195,6 +201,12 @@ class LinkedInClient:
             return self._handle_response(response, username, endpoint="classic")  # type: ignore[return-value]
         except HTTPException:
             raise
+        except httpx.TooManyRedirects as exc:
+            logger.warning("Too many redirects on classic endpoint: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="LinkedIn session expired or authentication checkpoint encountered (redirect loop). Please update your session cookies.",
+            ) from exc
         except httpx.RequestError as exc:
             logger.error("Network error on classic endpoint: %s", exc)
             raise HTTPException(
