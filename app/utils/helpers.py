@@ -15,7 +15,7 @@ from urllib.parse import urlparse, urlunparse
 
 # Matches /in/<slug> with optional trailing query-string / fragment
 _LINKEDIN_SLUG_RE = re.compile(
-    r"linkedin\.com/in/([A-Za-z0-9\-_%]+)",
+    r"(?:https?://)?(?:[a-z0-9-]+\.)?linkedin\.com/in/([A-Za-z0-9\-_%]+)",
     re.IGNORECASE,
 )
 
@@ -28,42 +28,49 @@ def extract_linkedin_slug(url: str) -> str | None:
     --------
     >>> extract_linkedin_slug("https://www.linkedin.com/in/satyanadella")
     'satyanadella'
-    >>> extract_linkedin_slug("https://www.linkedin.com/in/john-doe-123?trk=nav")
-    'john-doe-123'
-    >>> extract_linkedin_slug("not-a-linkedin-url")
-    None
+    >>> extract_linkedin_slug("https://in.linkedin.com/in/john-doe?trk=nav")
+    'john-doe'
+    >>> extract_linkedin_slug("satyanadella")
+    'satyanadella'
+    >>> extract_linkedin_slug("in/satyanadella")
+    'satyanadella'
     """
-    match = _LINKEDIN_SLUG_RE.search(url)
-    if not match:
+    if not url:
         return None
-    # Strip trailing slash or query params that crept into the capture group
-    return match.group(1).rstrip("/").split("?")[0].split("#")[0]
+    
+    url = url.strip().split("?")[0].split("#")[0].rstrip("/")
+    
+    match = _LINKEDIN_SLUG_RE.search(url)
+    if match:
+        return match.group(1)
+        
+    # Handle pure slugs or 'in/username'
+    if url.lower().startswith("in/"):
+        slug = url[3:]
+    else:
+        if "/" not in url:
+            slug = url
+        else:
+            return None
+            
+    if re.match(r"^[A-Za-z0-9\-_%]+$", slug):
+        return slug
+    return None
 
 
 def normalize_linkedin_url(url: str) -> str:
     """
     Return a canonical, clean LinkedIn profile URL.
-
-    Strips query parameters, fragments, and trailing slashes so we always
-    hit LinkedIn with a consistent identifier.
-
-    Examples
-    --------
-    >>> normalize_linkedin_url("https://www.linkedin.com/in/satyanadella?trk=nav_responsive_tab_profile")
-    'https://www.linkedin.com/in/satyanadella'
     """
-    parsed = urlparse(url.strip())
-    # Force scheme and netloc to canonical form
-    scheme = parsed.scheme or "https"
-    netloc = parsed.netloc or "www.linkedin.com"
-    # Remove query string and fragment, normalise path
-    path = parsed.path.rstrip("/")
-    return urlunparse((scheme, netloc, path, "", "", ""))
+    slug = extract_linkedin_slug(url)
+    if slug:
+        return f"https://www.linkedin.com/in/{slug}"
+    return url
 
 
 def is_valid_linkedin_profile_url(url: str) -> bool:
-    """Return True if *url* looks like a LinkedIn /in/ profile URL."""
-    return bool(_LINKEDIN_SLUG_RE.search(url))
+    """Return True if *url* can be parsed into a valid LinkedIn slug."""
+    return bool(extract_linkedin_slug(url))
 
 
 # ── Cookie / credential helpers ──────────────────────────────────────────────

@@ -130,7 +130,8 @@ class LinkedInClient:
             limits=limits,
             timeout=httpx.Timeout(settings.request_timeout),
             http2=True,
-            follow_redirects=False,
+            follow_redirects=True,
+            max_redirects=5,
         )
 
     async def aclose(self) -> None:
@@ -220,23 +221,21 @@ class LinkedInClient:
         """
         code = response.status_code
 
-        # ── Redirects (Authwall) ──────────────────────────────────────────
-        if code in (301, 302, 303, 307, 308):
-            location = response.headers.get("location", "")
-            if "authwall" in location.lower() or "login" in location.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=(
-                        f"LinkedIn redirected to authwall (HTTP {code}). "
-                        "Your session credentials (li_at / JSESSIONID) are invalid or expired. "
-                        "Please log in to LinkedIn in a browser, copy fresh cookie values, "
-                        "and update your configuration."
-                    ),
-                )
+        # ── Authwall / Checkpoint Detection ───────────────────────────────
+        final_url = str(response.url).lower()
+        if "authwall" in final_url or "checkpoint" in final_url or "login" in final_url:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Unexpected redirect from LinkedIn (HTTP {code} to {location})."
+                detail="LinkedIn authentication challenge/checkpoint encountered. Please refresh session cookies.",
             )
+
+        for history_response in response.history:
+            h_url = str(history_response.url).lower()
+            if "authwall" in h_url or "checkpoint" in h_url or "login" in h_url:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="LinkedIn authentication challenge/checkpoint encountered. Please refresh session cookies.",
+                )
 
         # ── Success ───────────────────────────────────────────────────────
         if code == 200:
@@ -287,11 +286,11 @@ class LinkedInClient:
         if code == 429:
             retry_after = response.headers.get("Retry-After", "unknown")
             raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=(
                     f"LinkedIn rate-limited this request (HTTP 429). "
                     f"Retry-After: {retry_after} seconds. "
-                    "Reduce request frequency or rotate credentials."
+                    "LinkedIn rate limits have been temporarily reached. Reduce request frequency or rotate credentials."
                 ),
             )
 

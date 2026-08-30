@@ -191,6 +191,9 @@ SettingsDep = Annotated[Settings, Depends(get_app_settings)]
 
 # ── Core scraping logic (shared by GET and POST) ──────────────────────────────
 
+_profile_cache: dict[str, tuple[float, ProfileResponse]] = {}
+CACHE_TTL = 60.0
+
 async def _scrape_profile(url: str, client: LinkedInClient) -> ProfileResponse:
     """
     Shared implementation: validate URL → extract slug → fetch → parse.
@@ -222,9 +225,18 @@ async def _scrape_profile(url: str, client: LinkedInClient) -> ProfileResponse:
             detail=f"Could not extract a username/slug from URL: {url!r}",
         )
 
+    now = time.time()
+    if slug in _profile_cache:
+        timestamp, cached_profile = _profile_cache[slug]
+        if now - timestamp < CACHE_TTL:
+            logger.info("Serving profile from cache | slug=%s", slug)
+            return cached_profile
+
     logger.info("Scraping profile | slug=%s | url=%s", slug, url)
     raw_data = await client.fetch_profile(slug)
     profile = parse_profile(raw_data, slug)
+
+    _profile_cache[slug] = (now, profile)
 
     logger.info(
         "Profile scraped | slug=%s | name=%s | exp=%d | edu=%d | skills=%d",
