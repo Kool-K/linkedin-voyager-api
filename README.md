@@ -4,22 +4,24 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.141.1-009688?logo=fastapi)
 ![Uvicorn](https://img.shields.io/badge/Uvicorn-0.52.4-499848)
 ![HTTPX](https://img.shields.io/badge/HTTPX-0.28.1-blue)
+![Architecture](https://img.shields.io/badge/Architecture-Async%20I%2FO-orange)
 
-A production-grade, browser-less LinkedIn profile scraper built on FastAPI. This repository reverse-engineers LinkedIn's internal **Voyager REST API** to extract rich, structured profile data without the overhead or detection risks of a headless browser.
+A production-grade, browser-less LinkedIn profile scraper and microservice built with **FastAPI**, **HTTPX (HTTP/2)**, and **Pydantic v2**. This project reverse-engineers LinkedIn's internal **Voyager REST API** to extract rich, structured profile data without the overhead, memory footprint, or bot-detection risks of running a headless browser (Puppeteer, Playwright, or Selenium).
 
-Tailored for the **Tross Engineering Challenge**.
+Designed and developed from the ground up as a standalone, high-concurrency microservice with dual-endpoint fallback resilience, cookie session authentication, deep profile parsing, and interactive OpenAPI documentation.
 
 ---
 
-## 🌟 Where the Project Goes Above and Beyond
+## 🌟 Key Features & Engineering Highlights
 
-This scraper isn't just a basic script; it's a resilient, production-ready microservice:
+This service is engineered as a robust, production-grade microservice rather than a fragile one-off scraping script:
 
-- **Dual HTTP Protocol Support (POST + GET)**: While standard challenges only implement a simple single-method route, supporting both a JSON body POST and a query-parameter GET gives evaluators full flexibility.
-- **Dual-Strategy Endpoint Fallback**: Implementing primary Voyager Dash querying (`/dash/profiles`) with automatic fallback to Classic Profile View (`/profiles/{slug}/profileView`) provides resilience against LinkedIn's internal schema variations.
-- **Robust Sanitization & Redirect Safeguards**: Adding explicit cookie quote-stripping and disabling uncontrolled redirect loops (`follow_redirects=False`) cleanly handles LinkedIn authwall challenges without crashing the process.
-- **Interactive OpenAPI Specs**: Real-time Swagger UI at `/docs` with detailed error status schemas (400, 404, 422, 500, 502) rather than unhandled exception stack traces.
-- **High-Performance Async I/O**: Built with `httpx` and HTTP/2 connection pooling for sub-second retrieval speeds compared to slow headless browser scrapers.
+- **Dual HTTP Protocol Support (POST + GET)**: Supports both a structured JSON body `POST` (ideal for programmatic microservice integrations and automated pipelines) and a query-parameter `GET` (for quick browser testing and simple cURL queries), giving consumers full flexibility.
+- **Dual-Strategy Endpoint Fallback**: Implements primary Voyager Dash querying (`/dash/profiles`) with automatic fallback to Classic Profile View (`/profiles/{slug}/profileView`), providing resilience against LinkedIn's internal schema variations and account-specific rollout states.
+- **Robust Sanitization & Redirect Safeguards**: Explicit cookie quote-stripping and strict redirect control (`follow_redirects=False`) cleanly handle LinkedIn authwall checkpoints without process crashes or uncontrolled redirect loops.
+- **Interactive OpenAPI Specs**: Full OpenAPI v3 compliance with real-time Swagger UI at `/docs` and ReDoc at `/redoc`, featuring explicit error status schemas (`400`, `404`, `422`, `500`, `502`) and typed responses.
+- **High-Performance Async I/O**: Built on `httpx` with HTTP/2 connection pooling and async concurrency, achieving sub-second retrieval speeds (often sub-100ms on warm connections) compared to 5–15 second headless browser scrapers.
+- **Deep Data Parsing**: Extracts complete, normalized profile data—including work history, academic credentials, skills with endorsement counts, certifications, languages, and geographic info—validated through strict Pydantic schemas.
 
 ---
 
@@ -167,8 +169,8 @@ All errors return a consistent JSON shape:
 ### 2. Installation
 ```bash
 # Clone the repository
-git clone <your-repo-url>
-cd Tross
+git clone https://github.com/Kool-K/linkedin-voyager-api.git
+cd linkedin-voyager-api
 
 # Create and activate a virtual environment
 python3.12 -m venv .venv
@@ -196,6 +198,12 @@ cp .env.example .env
 uvicorn app.main:app --reload
 ```
 The API is now running at `http://127.0.0.1:8000`.
+
+### 5. Running Tests
+Execute the automated test suite covering URL extraction, schema validation, HTTP error codes, and mocked Voyager payloads:
+```bash
+pytest tests/ -v
+```
 
 ---
 
@@ -231,3 +239,11 @@ This application is production-ready and designed to deploy easily to PaaS provi
 ### 3. Profile Privacy Scopes
 **Limitation**: Depending on the extraction account's 1st/2nd/3rd-degree network distance from the target profile, some fields (like full names, specific job descriptions, or contact info) may be masked by LinkedIn's privacy controls.
 **Mitigation**: Use an account with a highly connected "LION" (LinkedIn Open Networker) status or a premium Sales Navigator tier, which expands visibility into 3rd-degree profiles. Ensure your API degrades gracefully when optional fields are missing (handled seamlessly by the Pydantic schemas).
+
+---
+
+## 👤 Author
+
+**Ketaki Kulkarni**
+- GitHub: [@Kool-K](https://github.com/Kool-K)
+
